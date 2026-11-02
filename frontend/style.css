@@ -22,3 +22,9 @@ ul.reasons{padding-left:18px;font-size:13.5px;line-height:1.65}
 .pospanel{display:flex;flex-wrap:wrap;gap:4px 22px;background:#0a0f1a;border:1px solid var(--line);border-radius:10px;padding:9px 14px;font-size:13px;margin-top:10px}
 .foot{color:var(--dim);font-size:12px;text-align:center;line-height:1.65;margin:10px 0 26px}
 a{color:var(--accent)}
+.tvbox{border:1px dashed #3b4d6e;border-radius:12px;padding:8px 10px;margin-bottom:12px;background:#0d1420}
+.tvnote{font-size:11px;font-weight:700;color:#fbbf24;letter-spacing:.02em;margin-bottom:6px}
+.tradingview-widget-copyright{font-size:11px;color:var(--dim);padding-top:4px}
+.tradingview-widget-copyright a{text-decoration:none}
+.watchitem{display:inline-flex;flex-direction:column;gap:2px;margin:2px 6px 6px 0;vertical-align:top}
+.spark{width:120px;height:40px}

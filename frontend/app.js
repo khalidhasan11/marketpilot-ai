@@ -18,9 +18,10 @@ function fmt(x){return x===null||x===undefined||Number.isNaN(x)?'—':Number(x).
 
 /* ---------- data ---------- */
 async function fetchJSON(url,ms=12000){const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),ms);try{const r=await fetch(url,{signal:ctl.signal});if(!r.ok)throw new Error(r.status);return await r.json()}finally{clearTimeout(t)}}
-async function fetchKlines(tf,limit=300){
-  if(['5s','15s','30s'].includes(tf)){const f=parseInt(tf);const raw=await fetchJSON(`${BINANCE}/api/v3/klines?symbol=${state.symbol}&interval=1s&limit=${Math.min(1000,limit*f)}`);const ones=raw.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));const buckets=new Map();for(const k of ones){const bt=Math.floor(k.t/(f*1000))*(f*1000);const b=buckets.get(bt);if(!b)buckets.set(bt,{t:bt,o:k.o,h:k.h,l:k.l,c:k.c,v:k.v});else{b.h=Math.max(b.h,k.h);b.l=Math.min(b.l,k.l);b.c=k.c;b.v+=k.v}}return[...buckets.values()].sort((a,b)=>a.t-b.t).slice(-limit)}
-  const d=await fetchJSON(`${BINANCE}/api/v3/klines?symbol=${state.symbol}&interval=${tf}&limit=${limit}`);return d.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}))}
+async function fetchKlines(tf,limit=300,symbol){
+  symbol=symbol||state.symbol;
+  if(['5s','15s','30s'].includes(tf)){const f=parseInt(tf);const raw=await fetchJSON(`${BINANCE}/api/v3/klines?symbol=${symbol}&interval=1s&limit=${Math.min(1000,limit*f)}`);const ones=raw.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));const buckets=new Map();for(const k of ones){const bt=Math.floor(k.t/(f*1000))*(f*1000);const b=buckets.get(bt);if(!b)buckets.set(bt,{t:bt,o:k.o,h:k.h,l:k.l,c:k.c,v:k.v});else{b.h=Math.max(b.h,k.h);b.l=Math.min(b.l,k.l);b.c=k.c;b.v+=k.v}}return[...buckets.values()].sort((a,b)=>a.t-b.t).slice(-limit)}
+  const d=await fetchJSON(`${BINANCE}/api/v3/klines?symbol=${symbol}&interval=${tf}&limit=${limit}`);return d.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}))}
 async function refreshTicker(){try{const d=await fetchJSON(`${BINANCE}/api/v3/ticker/24hr?symbol=${state.symbol}`);state.ticker={price:+d.lastPrice,change:+d.priceChangePercent};$('price').textContent='$'+fmt(state.ticker.price);const ch=$('chg24');ch.textContent=(state.ticker.change>=0?'▲ +':'▼ ')+state.ticker.change.toFixed(2)+'% (24h)';ch.className=state.ticker.change>=0?'up':'down';renderChart()}catch(e){$('status').textContent='ticker error — retrying'}}
 async function refreshCandles(){try{state.candles=await fetchKlines(state.tf);$('status').textContent='Last update: '+new Date().toLocaleTimeString()+' · data LIVE (Binance)';renderAll()}catch(e){$('status').textContent='candle error — check connection'}}
 
@@ -60,6 +61,10 @@ function renderChart(){const cv=$('chart');if(!cv||state.candles.length<70)retur
   if(sig.open){const p=sig.open;const rNow=(p.dir==='LONG'?(cur-p.entry):(p.entry-cur))/(p.dir==='LONG'?(p.entry-p.sl):(p.sl-p.entry));$('ppNow').textContent=(rNow>=0?'+':'')+rNow.toFixed(2)+'R'}else $('ppNow').textContent='—';
   const tpN=sig.history.filter(x=>x.outcome==='TP').length,slN=sig.history.filter(x=>x.outcome==='SL').length,rvN=sig.history.filter(x=>x.outcome==='REV').length;
   $('sigStats').textContent=`Across ${closed.length} candles: TP ${tpN} · SL ${slN} · reversed ${rvN}${sig.open?' · '+sig.open.dir+' open':''} — strategy calculations, not predictions.`;
+  /* Primary chart = TradingView Lightweight Charts fed by our own Binance
+     datafeed (tv-chart.js). When active it renders and the canvas is skipped;
+     if the CDN library failed to load, we fall through to the canvas chart. */
+  if(window.MPTV&&window.MPTV.active){window.MPTV.render(state);return}
   const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;if(cv.width!==Math.round(W*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
   const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
   const N=120,start=Math.max(0,candles.length-N),vis=candles.slice(start);
@@ -143,7 +148,7 @@ $('paperSell').addEventListener('click',()=>{const p=paperGet();const price=stat
 $('paperReset').addEventListener('click',()=>{store.set('paper',{balance:10000,positions:[],closed:[]});renderPaper()});
 
 /* ---------- watchlist / alerts / quotex / settings ---------- */
-function renderWatch(){const w=store.get('watchlist',['BTCUSDT','ETHUSDT']);$('watchOut').innerHTML=w.map(s=>`<span class="tag" style="margin:2px">${s}</span>`).join(' ')||'Empty'}
+function renderWatch(){const w=store.get('watchlist',['BTCUSDT','ETHUSDT']);$('watchOut').innerHTML=w.length?w.map(s=>`<span class="watchitem"><span class="tag">${s}</span><span class="spark" id="spark-${s}"></span></span>`).join(''):'Empty';if(window.MPTV&&window.MPTV.active)window.MPTV.renderSparklines(w)}
 $('watchAdd').addEventListener('click',()=>{const w=store.get('watchlist',[]);if(!w.includes(state.symbol))w.push(state.symbol);store.set('watchlist',w);renderWatch()});
 $('watchRemove').addEventListener('click',()=>{store.set('watchlist',store.get('watchlist',[]).filter(s=>s!==state.symbol));renderWatch()});
 function pushAlert(msg){const a=store.get('alerts',[]);a.unshift({ts:new Date().toISOString(),msg});store.set('alerts',a.slice(0,50));renderAlerts();if(store.get('notif',false)&&window.Notification&&Notification.permission==='granted')new Notification('MarketPilot AI',{body:msg})}
@@ -154,7 +159,8 @@ function renderQ(){const obs=store.get('quotexObs',[]);$('qOut').innerHTML=obs.l
 $('saveSettings').addEventListener('click',()=>{store.set('apiBase',$('apiBase').value.trim());store.set('notif',$('notifToggle').checked);if($('notifToggle').checked&&window.Notification)Notification.requestPermission();renderProviders();alert('Settings saved')});
 
 /* ---------- nav / init ---------- */
-$('mainNav').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(!b)return;document.querySelectorAll('#mainNav .btn').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+b.dataset.view))});
+$('mainNav').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(!b)return;document.querySelectorAll('#mainNav .btn').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+b.dataset.view));if(b.dataset.view==='compare'&&window.MPTV)window.MPTV.renderComparison();if(b.dataset.view==='watchlist')renderWatch()});
+$('cmpBtn').addEventListener('click',()=>{if(window.MPTV)window.MPTV.renderComparison()});
 $('symbolSel').addEventListener('change',e=>{state.symbol=e.target.value;state.candles=[];refreshTicker();refreshCandles();loadNews()});
 $('tfSel').addEventListener('change',e=>{state.tf=e.target.value;refreshCandles()});
 $('apiBase').value=store.get('apiBase','');$('notifToggle').checked=store.get('notif',false);
