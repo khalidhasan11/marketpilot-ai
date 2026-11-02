@@ -32,6 +32,18 @@ AI-powered live market intelligence, multi-asset analysis & trading-signal platf
   expectancy, max drawdown, Sharpe, Brier — including when the result is losing.
 - **Paper trading**: virtual $10,000 account, orders/positions, fees+slippage, PnL — persisted
   (backend SQLite) and mirrored in the web UI via localStorage. No real money, ever.
+- **Charts — TradingView Lightweight Charts™ (Apache-2.0), our data**: the primary chart
+  is TradingView's open-source library fed **only** by MarketPilot's own Binance datafeed
+  (Datafeed-API-shaped module, EMA 20/50, volume, BUY/SELL markers from the independent
+  EMA-cross+RSI logic, entry/SL/TP lines, second-resolution aggregation from real 1s
+  klines, live Binance WebSocket updates). TV widgets (ticker tape, crypto heatmap,
+  economic calendar) are **display-only**, fenced and labelled; Advanced Charts is
+  **blocked** on TradingView approval + its no-public-repo licence. The built-in canvas
+  chart remains as automatic fallback. Full licensing basis: `docs/TRADINGVIEW_INTEGRATION.md`.
+- **TradingView webhook alerts (confirmation only)**: `POST /api/v1/webhooks/tradingview`
+  with shared-secret auth, ±5 min timestamp window, dedupe, rate limiting and full audit
+  logging. Alerts are stored as confirmations and **never** create or alter a prediction.
+  Note: TradingView only *delivers* webhooks on its paid plans — the receiver is free and ready.
 - **Auth**: register/login, PBKDF2-HMAC-SHA256 password hashing, bearer-token sessions,
   protected routes, basic rate limiting, audit log.
 - **Chrome Extension (MV3)**: live prices + top scores, options, notifications. No keys inside.

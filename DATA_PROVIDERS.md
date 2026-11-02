@@ -17,6 +17,14 @@
 Set keys in `.env` (see `.env.example`) to enable; the provider layer reports
 `requires_api_key` until then. Nothing is simulated in their place.
 
+## TradingView is NOT a data provider here
+TradingView supplies no licensed machine-readable data feed for this use (their FAQ:
+"We don't have an API that gives access to data"). MarketPilot therefore uses
+TradingView **only** as (a) the Lightweight Charts rendering library for its own
+Binance bars and (b) display-only hosted widgets with TV's own data/branding.
+Nothing is scraped from tradingview.com, and TV indicator summaries/ratings are
+never inputs. Licensing detail: `docs/TRADINGVIEW_INTEGRATION.md`.
+
 ## Not available honestly
 - **Quotex OTC**: no official API, broker-made prices → module is data-limited/unsupported.
 - **True real-time forex/stocks on $0**: no free provider offers full real-time

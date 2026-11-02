@@ -128,3 +128,43 @@ developer fee $5 one-time, paid data tiers vary. None recommended now.
   signal lifecycle auto-expiry/outcome evaluator.
 - **Explicitly never:** real-money trading, Quotex scraping/automation, paid resources
   without Khalid's approval, any fabricated accuracy claim.
+
+---
+
+# Addendum — TradingView Integration (Nov 2 2026)
+
+**Licensing verdicts (verified from official TradingView sources, full citations in
+`docs/TRADINGVIEW_INTEGRATION.md`):**
+- **Lightweight Charts™ — SELECTED as primary chart.** Open source, Apache-2.0
+  (github.com/tradingview/lightweight-charts), free including commercial use, with a
+  README attribution condition (TradingView named as creator + link) — satisfied via
+  the chart's attribution logo and a text credit. Pinned at **5.2.1** from unpkg.
+  It renders **MarketPilot's own Binance data** through a purpose-built datafeed
+  (`frontend/tv-datafeed.js`, Datafeed-API-shaped), with EMA 20/50 overlays, volume,
+  BUY/SELL/TP/SL markers from the independent EMA-cross+RSI logic, entry/SL/TP price
+  lines, Binance-WebSocket live updates, an asset-comparison view, and watchlist
+  sparklines. The previous canvas chart remains as automatic fallback.
+- **TradingView Widgets — display-only.** Official free embeds (Ticker Tape, Crypto
+  Heatmap, Economic Calendar) with TradingView branding/attribution intact, each in a
+  container labelled "display only — not used by predictions". No code reads them.
+  The Economic Calendar widget upgrades the calendar view with real events displayed
+  by TradingView itself; the app's own reference list stays as fallback.
+- **Advanced Charts / Charting Library — BLOCKED.** Official docs: access requires a
+  TradingView application + approval (private GitHub repo), "the library is not
+  redistributable; it is prohibited to use any part of the library in public
+  repositories." This repo is public (free Pages), so it is not downloaded or included.
+- **Data independence — unchanged and verified.** Predictions still come only from
+  Binance public data + RSS news; grep confirms zero TradingView references in
+  prediction/scanner/backtest code. TradingView has no public data API and nothing
+  was scraped or reverse-engineered.
+
+**Webhook receiver — built & tested.** `POST /api/v1/webhooks/tradingview`:
+shared-secret auth (503 when unconfigured, 401 wrong secret, constant-time compare),
+±5-minute timestamp validation, duplicate detection, 30/min/IP rate limit, symbol
+normalisation, full audit trail; accepted alerts stored as confirmation-only records
+that can never create or modify a decision. Tests: **23 passed** total (7 new).
+Live curl smoke test passed every scenario (401/400/422/accept/duplicate/auth-gated list).
+**Honest limitation:** TradingView only *sends* webhook alerts on paid plans
+(Essential or higher, 2FA required) — under Khalid's free-only rule no real TV alert
+can fire today; the receiver is ready if that ever changes, and this is not promised
+as working for free anywhere in the product.

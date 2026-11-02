@@ -9,6 +9,16 @@
    put keys in a local `.env` (never in chat/GitHub) to unlock forex/stocks status
    from `requires_api_key` → configured.
 
+## TradingView follow-ups (from the Nov 2 addendum)
+- **Advanced Charts**: only if Khalid (a) applies on TradingView's Advanced Charts
+  landing page and is approved, AND (b) moves the frontend to private hosting (the
+  licence prohibits public repos). The Binance datafeed already mirrors the Datafeed
+  API contract for that swap. Until both happen: BLOCKED, do not download it.
+- **Real webhook alerts**: require a paid TradingView plan (Essential+) + 2FA — against
+  the current free-only rule. The receiver endpoint is deployed-ready; nothing to build.
+- Economic-calendar widget now shows real events (display-only, by TradingView);
+  backlog item 5 below is therefore optional, not a gap.
+
 ## Engineering backlog (in priority order)
 1. Forward paper-trading log: run the backend daily, let predictions accumulate
    outcomes for 4+ weeks, then produce the first honest calibration report.

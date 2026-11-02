@@ -34,6 +34,43 @@
   expectancy −$89.03, net −$445.17, max DD 6.76%, Sharpe −1.232, Brier 0.2825** — losing, reported as-is
 - Auth: register → user_id 1; login → bearer token issued
 
+## TradingView addendum (Nov 2 2026, late) — done & verified
+- [x] Licensing research from official sources → `docs/TRADINGVIEW_INTEGRATION.md`
+      (Lightweight Charts Apache-2.0 SELECTED; widgets free/display-only with attribution;
+      Advanced Charts BLOCKED — approval-gated + prohibited in public repos; TV has no
+      data API and nothing is scraped).
+- [x] Primary chart = Lightweight Charts **5.2.1** (pinned unpkg, verified 200) fed by
+      `frontend/tv-datafeed.js` (Binance-only, Datafeed-API-shaped: onReady/searchSymbols/
+      resolveSymbol/getBars/subscribeBars/unsubscribeBars; 5s/15s/30s aggregated from real
+      1s klines; live via Binance kline WebSocket). Candles + volume, EMA 20/50, BUY/SELL/
+      TP/SL markers from the independent EMA-cross+RSI logic, entry/SL/TP price lines.
+      Canvas chart kept as automatic fallback if the CDN fails.
+- [x] Asset Comparison view (normalised-% lines, own data) + watchlist sparklines (LWC, own data).
+- [x] Display-only TV widgets, fenced + labelled + attribution intact: Ticker Tape (Overview),
+      Crypto Heatmap (Rankings), Economic Calendar (Calendar — real events shown by TV;
+      own types-only list remains as fallback). No JS reads widget output.
+- [x] Backend webhook `POST /api/v1/webhooks/tradingview`: secret (constant-time; 503 when
+      unconfigured), ±5 min timestamp window, dedupe by event_id/payload hash, 30/min/IP rate
+      limit, symbol mapping, full audit + `tv_webhook_events`/`signal_confirmations`
+      (confirmation_only=1). `GET …/events` is auth-protected. Migration `002_tv_webhook.sql`.
+- [x] Extension options page: one-line note that TV alerts are confirmation-only (only change).
+
+### Addendum test results (real, executed)
+- pytest: **23 passed** (16 previous + 7 new webhook tests: 503 unconfigured, 401 wrong
+  secret, 400 stale timestamp, 422 unknown symbol, symbol mapping, accept→dedupe→
+  confirmation-only with proof no signal/prediction was created, events require auth).
+  A real bug was caught + fixed by these tests (malformed signal_confirmations INSERT).
+- Live curl smoke (uvicorn :8023, test secret): health ok; wrong secret 401; stale 400;
+  unknown symbol 422; accept → `{"accepted":true,"symbol":"BTCUSDT","confirmation_only":true}`;
+  repeat → `{"duplicate":true}`; events listed with auth (401 without).
+- Frontend served locally: page contains the pinned LWC CDN, all three widget containers,
+  the LWC container + canvas fallback, Compare view; all new JS files return 200 and pass
+  `node --check`. Engine independence verified by grep: `prediction.py`, `scanner.py`,
+  `backtest.py` contain **zero** TradingView references.
+- Honest caveat: TradingView *delivers* webhooks only on paid plans (Essential+, 2FA
+  required) — with Khalid's free-only rule the receiver is ready but no real TV alert
+  can fire until/unless he ever has a paid TV plan. Not promised as free anywhere.
+
 ## Known limitations
 - Forex/stocks/indices/metals live data: key-gated (no free real-time source) — UNAVAILABLE, not faked.
 - Backend not on a public host yet (blocked step documented). Frontend runs standalone meanwhile.
