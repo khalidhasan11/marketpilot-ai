@@ -1,0 +1,17 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install -r backend/requirements.txt
+      - run: python -m pytest backend/tests/ -q
+      - name: Frontend JS syntax check
+        run: node --check frontend/app.js
+      - name: Extension JS syntax check
+        run: node --check extension/popup.js && node --check extension/background.js && node --check extension/options.js
+      - name: Validate extension manifest
+        run: python -c "import json; json.load(open('extension/manifest.json')); print('manifest ok')"
