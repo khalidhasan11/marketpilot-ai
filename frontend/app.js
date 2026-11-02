@@ -158,11 +158,28 @@ $('qSave').addEventListener('click',()=>{const v=parseFloat($('qPrice').value);i
 function renderQ(){const obs=store.get('quotexObs',[]);$('qOut').innerHTML=obs.length?`<table><tr><th>Time</th><th>Symbol</th><th>Quotex shown</th><th>Binance live</th><th>Gap</th></tr>${obs.map(o=>`<tr><td>${o.ts.slice(0,19).replace('T',' ')}</td><td>${o.symbol}</td><td>${fmt(o.quotex)}</td><td>${fmt(o.binance)}</td><td>${o.binance?fmt(o.quotex-o.binance):'—'}</td></tr>`).join('')}</table>`:'No observations saved.'}
 $('saveSettings').addEventListener('click',()=>{store.set('apiBase',$('apiBase').value.trim());store.set('notif',$('notifToggle').checked);if($('notifToggle').checked&&window.Notification)Notification.requestPermission();renderProviders();alert('Settings saved')});
 
+/* ---------- 1-Second Live Mode hook (live1s.js) ----------
+   Single shared callback path: live1s folds real aggTrades (or the 1s REST
+   polling fallback) into the FORMING candle and calls this. It updates
+   state.candles' last bar in place (or appends the new bar on rollover) and
+   repaints whichever chart is active — Lightweight Charts or the canvas
+   fallback. Closed candles and every signal calculation stay untouched. */
+window.MPState=state;
+window.MPHandleLiveBar=function(bar){
+  if(!state.candles.length)return;
+  const bt=bar.time*1000,lastC=state.candles[state.candles.length-1];
+  if(bt===lastC.t){lastC.h=Math.max(lastC.h,bar.high);lastC.l=Math.min(lastC.l,bar.low);lastC.c=bar.close;lastC.v=bar.volume}
+  else if(bt>lastC.t){state.candles.push({t:bt,o:bar.open,h:bar.high,l:bar.low,c:bar.close,v:bar.volume});if(state.candles.length>1000)state.candles.shift()}
+  else return;
+  if(window.MPTV&&window.MPTV.active&&window.MPTV.updateLiveBar)window.MPTV.updateLiveBar(bar);
+  else renderChart();
+};
+
 /* ---------- nav / init ---------- */
 $('mainNav').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(!b)return;document.querySelectorAll('#mainNav .btn').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+b.dataset.view));if(b.dataset.view==='compare'&&window.MPTV)window.MPTV.renderComparison();if(b.dataset.view==='watchlist')renderWatch()});
 $('cmpBtn').addEventListener('click',()=>{if(window.MPTV)window.MPTV.renderComparison()});
-$('symbolSel').addEventListener('change',e=>{state.symbol=e.target.value;state.candles=[];refreshTicker();refreshCandles();loadNews()});
-$('tfSel').addEventListener('change',e=>{state.tf=e.target.value;refreshCandles()});
+$('symbolSel').addEventListener('change',e=>{state.symbol=e.target.value;state.candles=[];refreshTicker();refreshCandles();loadNews();if(window.MPLive1s)window.MPLive1s.resubscribe()});
+$('tfSel').addEventListener('change',e=>{state.tf=e.target.value;refreshCandles();if(window.MPLive1s)window.MPLive1s.resubscribe()});
 $('apiBase').value=store.get('apiBase','');$('notifToggle').checked=store.get('notif',false);
 renderWatch();renderAlerts();renderQ();renderHistory();renderPaper();
 refreshTicker();refreshCandles();loadNews();

@@ -26,5 +26,17 @@ a{color:var(--accent)}
 .tvnote{font-size:11px;font-weight:700;color:#fbbf24;letter-spacing:.02em;margin-bottom:6px}
 .tradingview-widget-copyright{font-size:11px;color:var(--dim);padding-top:4px}
 .tradingview-widget-copyright a{text-decoration:none}
+.livebar{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;background:#0a0f1a;border:1px solid var(--line);border-radius:10px;padding:8px 14px;margin-bottom:10px;font-size:13px}
+.livetoggle{cursor:pointer;font-weight:700}
+.livetoggle input{accent-color:var(--up);margin-right:5px}
+.live-ind{font-size:11.5px;font-weight:800;letter-spacing:.03em}
+.live-ind.on{color:var(--up)}
+.live-ind.poll{color:var(--flat)}
+.live-ind.off{color:var(--dim)}
+.live-price{font-size:19px;font-weight:800;border-radius:6px;padding:0 6px}
+@keyframes mpFlashUp{0%{background:rgba(34,197,94,.35);color:var(--up)}100%{background:transparent}}
+@keyframes mpFlashDown{0%{background:rgba(239,68,68,.35);color:var(--down)}100%{background:transparent}}
+.flash-up{animation:mpFlashUp .9s ease-out}
+.flash-down{animation:mpFlashDown .9s ease-out}
 .watchitem{display:inline-flex;flex-direction:column;gap:2px;margin:2px 6px 6px 0;vertical-align:top}
 .spark{width:120px;height:40px}

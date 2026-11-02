@@ -77,3 +77,39 @@
 - Password reset by email: not implemented (no mail provider) — documented in SECURITY.md.
 - WebSocket proxies Binance by 5s polling; true upstream WS streaming is a drop-in upgrade.
 - Prediction probability is score-mapped, NOT calibrated — labelled as such everywhere.
+
+## 1-Second Live Mode (Nov 3 2026) — done & verified
+- [x] `frontend/live1s.js`: Binance **aggTrade WebSocket** for the selected symbol folds
+      real trades into the FORMING candle only (close = last trade, high/low expand,
+      volume = seeded bar volume + real traded quantities received). Chart repaints
+      throttled to 4/sec, header price to 1/sec with green/red flash. Nothing is
+      interpolated or smoothed.
+- [x] Header/toolbar: "Live 1s" toggle (ON by default, persisted), `● LIVE 1s`
+      indicator, live price, and a candle-close countdown (UTC-aligned; 0.1s
+      resolution on the 1s timeframe). Note beside it: "Signals use closed candles only."
+- [x] Seconds timeframes (1s/5s/15s/30s): forming bar is built from the trade stream
+      with the same bucket aggregation as the REST path (pure core shared/tested).
+- [x] Resilience: no WS message within 5 s → automatic 1-second REST polling fallback
+      (indicator shows "● LIVE 1s (polling)"); WS wins again if it later delivers;
+      one reconnect attempt on socket error/close before falling back. Symbol/TF
+      switches resubscribe cleanly; toggle-off closes the socket and restores the
+      previous kline/poll behaviour (tv-chart.js defers its kline subscription to
+      Live 1s while it is ON; single shared callback `MPHandleLiveBar` feeds both
+      the Lightweight Charts series and the canvas fallback).
+- [x] Prediction integrity unchanged: live ticks repaint only the forming bar;
+      signals/markers still compute on closed candles only (no repaint).
+
+### Live-mode test results (real, executed)
+- `node tests/live1s.test.js`: **8 passed** — timeframe mapping, UTC bucket alignment,
+  first-trade bar creation, in-bucket high/low/close/volume accumulation, bucket
+  rollover (closed bar preserved, new bar opens at the trade price), multi-bucket
+  gap handling, late-trade rejection, 1s rollover.
+- `node --check` passes for all frontend JS. Frontend served locally: 200, all live
+  elements present (`live1sToggle`, `liveInd`, `livePrice`, `liveCountdown`).
+- REST fallback endpoints verified live from this VM (ticker/price + 1s klines 200).
+- **Honest caveat:** WebSocket delivery could NOT be observed from this VM's network —
+  a probe of both `stream.binance.com` and `data-stream.binance.vision` aggTrade
+  streams received **0 messages in 6 s** (the known silent-WS behaviour on this
+  network). The polling fallback therefore is the active path here and was verified
+  in code, unit tests, and live REST responses; on networks where WS delivers
+  (typical home/mobile), the trade stream takes over automatically.

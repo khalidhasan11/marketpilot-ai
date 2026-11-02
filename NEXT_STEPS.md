@@ -31,3 +31,10 @@
 ## Explicitly NOT planned
 - Real-money / auto trading. Quotex scraping or automation. Paid data or hosting
   without Khalid's explicit approval from future earnings.
+
+## Done since (Nov 3 2026)
+- 1-Second Live Mode shipped (aggTrade trade stream + 1s REST polling fallback,
+  countdown, price flash, Live 1s toggle). Note: this VM's network silently drops
+  Binance WS, so the polling path is what runs here; WS auto-takes-over where it
+  delivers. Backlog item 2 (frontend WS client) is therefore partially done —
+  the backend /ws proxy upgrade remains open.

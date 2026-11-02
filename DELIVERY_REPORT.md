@@ -168,3 +168,26 @@ Live curl smoke test passed every scenario (401/400/422/accept/duplicate/auth-ga
 (Essential or higher, 2FA required) — under Khalid's free-only rule no real TV alert
 can fire today; the receiver is ready if that ever changes, and this is not promised
 as working for free anywhere in the product.
+
+---
+
+## Addendum — 1-Second Live Mode (Nov 3, 2026)
+
+The chart now updates every second. A dedicated module (`frontend/live1s.js`)
+subscribes to Binance's **aggTrade** stream for the selected symbol and folds each
+real trade into the forming candle (close = trade price, high/low expanded, volume
+accumulated from real traded quantities) — chart repaints throttled to 4/sec, header
+price to 1/sec with a green/red tick flash, plus a UTC-aligned **candle-close
+countdown** and a **Live 1s toggle** (on by default). Sub-minute timeframes
+(1s/5s/15s/30s) aggregate trades into the current bucket with the same rules as the
+REST path. If the WebSocket delivers nothing within 5 seconds — some networks
+silently drop it — the mode automatically falls back to **1-second REST polling**
+and labels itself "● LIVE 1s (polling)"; the trade stream retakes control if it
+later delivers. Signals and markers are unchanged: they still compute on **closed
+candles only**, and a note beside the live indicator says so.
+
+Verification: 8/8 new Node unit tests pass for the trade→bar aggregation core
+(including bucket rollover and late-trade rejection); all JS passes `node --check`;
+the live page references the new module. Honest caveat: from the build VM's network,
+Binance WebSocket streams delivered no messages (0 in 6 s on both endpoints), so the
+polling fallback was the path verified live there — by design, not by accident.

@@ -53,6 +53,13 @@
   </div>
   <div id="vetoBox"></div>
   <div class="card"><h2>Chart — EMA 5/13 + RSI filter (closed candles only, never repaints)</h2>
+    <div class="livebar">
+      <label class="livetoggle"><input type="checkbox" id="live1sToggle" checked> Live 1s</label>
+      <span id="liveInd" class="live-ind on">● LIVE 1s</span>
+      <span id="livePrice" class="live-price">—</span>
+      <span id="liveCountdown" class="dim"></span>
+      <span class="dim" style="font-size:11px">Signals use closed candles only.</span>
+    </div>
     <div id="chartEngine" class="dim" style="font-size:12px;margin-bottom:6px">Chart engine: built-in canvas (fallback)</div>
     <div id="lwcChart" style="display:none;width:100%;height:360px;background:#0a0f1a;border:1px solid var(--line);border-radius:10px"></div>
     <canvas id="chart"></canvas>
@@ -135,5 +142,6 @@ Charts: TradingView Lightweight Charts™ © TradingView, Inc. (<a href="https:/
 <script src="tv-datafeed.js"></script>
 <script src="tv-chart.js"></script>
 <script src="tv-widgets.js"></script>
+<script src="live1s.js"></script>
 </body>
 </html>

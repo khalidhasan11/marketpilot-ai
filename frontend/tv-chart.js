@@ -71,13 +71,18 @@ async function render(state){
     ema20Series.setData(emaLine(state.candles,20));ema50Series.setData(emaLine(state.candles,50));
     const m=markersFor(state.candles);markersPlugin.setMarkers(m.markers);setPriceLines(m.open);
     chart.timeScale().scrollToRealTime();
-    if(subGuid)window.MPDatafeed.unsubscribeBars(subGuid);
-    subGuid='mp-'+Date.now();
-    const res=window.MPDatafeed.resolutions[state.tf]||'5';
-    window.MPDatafeed.subscribeBars({ticker:state.symbol,name:state.symbol},res,bar=>{
-      if(!candleSeries||bar.time<lastBarTime)return;lastBarTime=Math.max(lastBarTime,bar.time);
-      try{candleSeries.update(bar);volSeries.update({time:bar.time,value:bar.volume,color:bar.close>=bar.open?'rgba(34,197,94,0.45)':'rgba(239,68,68,0.45)'})}catch(e){}
-    },subGuid);
+    if(subGuid){window.MPDatafeed.unsubscribeBars(subGuid);subGuid=null}
+    /* 1-Second Live Mode owns the forming bar while it is ON — don't let the
+       kline subscription fight it. When Live 1s is off, subscribe as before. */
+    const liveOn=window.MPLive1s&&window.MPLive1s.isOn&&window.MPLive1s.isOn();
+    if(!liveOn){
+      subGuid='mp-'+Date.now();
+      const res=window.MPDatafeed.resolutions[state.tf]||'5';
+      window.MPDatafeed.subscribeBars({ticker:state.symbol,name:state.symbol},res,bar=>{
+        if(!candleSeries||bar.time<lastBarTime)return;lastBarTime=Math.max(lastBarTime,bar.time);
+        try{candleSeries.update(bar);volSeries.update({time:bar.time,value:bar.volume,color:bar.close>=bar.open?'rgba(34,197,94,0.45)':'rgba(239,68,68,0.45)'})}catch(e){}
+      },subGuid);
+    }
   }else{
     const lastBar=bars[bars.length-1];
     if(lastBar.time>=lastBarTime){lastBarTime=lastBar.time;
@@ -132,5 +137,18 @@ async function renderSparklines(symbols){
   }
 }
 
-window.MPTV={get active(){return available()},render,renderComparison,renderSparklines};
+/* Live 1s: repaint the forming bar from a real trade/poll update. */
+function updateLiveBar(bar){
+  if(!candleSeries||!bar||bar.time<lastBarTime)return;
+  lastBarTime=Math.max(lastBarTime,bar.time);
+  try{candleSeries.update(bar);volSeries.update({time:bar.time,value:bar.volume,color:bar.close>=bar.open?'rgba(34,197,94,0.45)':'rgba(239,68,68,0.45)'})}catch(e){}
+}
+/* Forget the current key/subscription so the next render() re-seeds and
+   re-subscribes (used when Live 1s is toggled on/off). */
+function resetSubscription(){
+  curKey=null;
+  if(subGuid&&window.MPDatafeed){try{window.MPDatafeed.unsubscribeBars(subGuid)}catch(e){}subGuid=null}
+}
+
+window.MPTV={get active(){return available()},render,renderComparison,renderSparklines,updateLiveBar,resetSubscription};
 })();
