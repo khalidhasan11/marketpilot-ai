@@ -1,7 +1,7 @@
 """MarketPilot AI — FastAPI backend. Versioned /api/v1. OpenAPI at /docs."""
-import os, time, json, secrets, asyncio
+import os, time, json, secrets, asyncio, hmac, hashlib
 from datetime import datetime, timezone
-from fastapi import FastAPI, HTTPException, Header, WebSocket, WebSocketDisconnect, Query
+from fastapi import FastAPI, HTTPException, Header, Request, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
@@ -15,6 +15,7 @@ from .prediction import predict
 from .backtest import run_backtest, walk_forward
 from .risk import position_size, guards
 from . import paper as paper_mod
+from .tv_webhook import normalize_symbol, parse_timestamp, event_key_for, store_event
 from . import MODEL_VERSION
 
 app = FastAPI(title="MarketPilot AI", version="1.0.0",
@@ -239,6 +240,80 @@ def quotex():
             "reasons": ["Quotex provides no official public API for OTC prices", "OTC prices are broker-generated and differ from Binance/exchange prices", "Scraping, login bypass and private-API reverse engineering are prohibited and not implemented"],
             "supported": ["Independent exchange-market analysis (Binance) shown separately", "Manual observation mode: user records displayed Quotex price + timestamp and compares manually"],
             "signals_for_quotex_otc": "DISABLED — required validated OTC data source is unavailable"}
+
+# ---------- TradingView webhook alerts (SUPPLEMENTARY CONFIRMATION ONLY) ----------
+# Accepted alerts become a notification + a signal_confirmations row flagged
+# confirmation_only=1. They NEVER create or modify a prediction/signal: the
+# decision engine does not read them. Licensing basis: docs/TRADINGVIEW_INTEGRATION.md
+# NOTE: TradingView only delivers webhooks on paid plans (Essential+) with 2FA on.
+
+@app.post("/api/v1/webhooks/tradingview")
+async def tv_webhook(request: Request):
+    ip = request.client.host if request.client else "unknown"
+    rate_limit(f"tvwh:{ip}", limit=30, window=60)
+    secret_env = os.environ.get("TRADINGVIEW_WEBHOOK_SECRET", "")
+    if not secret_env:
+        raise HTTPException(503, "TradingView webhook not configured: set TRADINGVIEW_WEBHOOK_SECRET on the server")
+    raw = await request.body()
+    try: body = json.loads(raw or b"{}")
+    except Exception: raise HTTPException(400, "Body must be valid JSON")
+    if not isinstance(body, dict): raise HTTPException(400, "Body must be a JSON object")
+    c = conn()
+    provided = body.get("secret") or request.headers.get("x-webhook-secret") or ""
+    if not hmac.compare_digest(str(provided), secret_env):
+        store_event(c, event_key="bad:" + hashlib.sha256(raw).hexdigest(), symbol_raw=str(body.get("symbol", "")),
+                    symbol=None, action=str(body.get("action") or body.get("alert") or ""), price=None,
+                    status="rejected_bad_secret", payload={"note": "secret redacted"}, ip=ip)
+        c.commit(); c.close(); audit(None, "tv_webhook_rejected", "bad secret")
+        raise HTTPException(401, "Invalid webhook secret")
+    try: ts = parse_timestamp(body.get("timestamp"))
+    except Exception:
+        store_event(c, event_key=event_key_for(body, raw), symbol_raw=str(body.get("symbol", "")), symbol=None,
+                    action=str(body.get("action") or body.get("alert") or ""), price=None,
+                    status="rejected_bad_timestamp", payload=body, ip=ip)
+        c.commit(); c.close(); audit(None, "tv_webhook_rejected", "bad timestamp")
+        raise HTTPException(400, "Missing or unparseable timestamp")
+    if abs(time.time() - ts) > 300:
+        store_event(c, event_key=event_key_for(body, raw), symbol_raw=str(body.get("symbol", "")), symbol=None,
+                    action=str(body.get("action") or body.get("alert") or ""), price=None,
+                    status="rejected_stale_timestamp", payload=body, ip=ip)
+        c.commit(); c.close(); audit(None, "tv_webhook_rejected", "stale timestamp")
+        raise HTTPException(400, "Timestamp outside ±5 minute window")
+    key = event_key_for(body, raw)
+    dup = c.execute("SELECT id FROM tv_webhook_events WHERE event_key=? AND status='accepted'", (key,)).fetchone()
+    if dup:
+        c.close(); audit(None, "tv_webhook_duplicate", key[:80])
+        return {"duplicate": True, "event_id": dup["id"], "confirmation_only": True}
+    symbol = normalize_symbol(body.get("symbol"))
+    action = str(body.get("action") or body.get("alert") or "")[:200]
+    price = body.get("price")
+    try: price = float(price) if price is not None else None
+    except Exception: price = None
+    if not symbol:
+        store_event(c, event_key=key, symbol_raw=str(body.get("symbol", "")), symbol=None, action=action,
+                    price=price, status="rejected_unknown_symbol", payload=body, ip=ip)
+        c.commit(); c.close(); audit(None, "tv_webhook_rejected", f"unknown symbol {body.get('symbol')}")
+        raise HTTPException(422, f"Unknown or unsupported symbol: {body.get('symbol')}")
+    store_event(c, event_key=key, symbol_raw=str(body.get("symbol", "")), symbol=symbol, action=action,
+                price=price, status="accepted", payload={k: v for k, v in body.items() if k != "secret"}, ip=ip)
+    ev = c.execute("SELECT id FROM tv_webhook_events WHERE event_key=?", (key,)).fetchone()
+    c.execute("INSERT INTO signal_confirmations(source,symbol,action,price,confirmation_only,event_id,ts) VALUES ('tradingview_alert',?,?,?,1,?,?)",
+              (symbol, action, price, ev["id"], int(time.time())))
+    c.execute("INSERT INTO notifications(user_id,kind,message,ts) VALUES (NULL,'tradingview_alert',?,?)",
+              (f"TradingView alert (confirmation only — not a MarketPilot decision): {symbol} {action}".strip(), int(time.time())))
+    c.commit(); c.close(); audit(None, "tv_webhook_accepted", f"{symbol} {action}"[:200])
+    return {"accepted": True, "event_id": ev["id"], "symbol": symbol, "confirmation_only": True,
+            "note": "Stored as supplementary confirmation only. MarketPilot predictions are computed independently from Binance data and are never created or altered by TradingView alerts."}
+
+@app.get("/api/v1/webhooks/tradingview/events")
+def tv_webhook_events(limit: int = 50, authorization: Optional[str] = Header(default=None)):
+    current_user(authorization)
+    c = conn()
+    rows = [dict(r) for r in c.execute("SELECT id,event_key,symbol_raw,symbol,action,price,status,ip,ts FROM tv_webhook_events ORDER BY id DESC LIMIT ?", (min(limit, 200),)).fetchall()]
+    confs = [dict(r) for r in c.execute("SELECT id,source,symbol,action,price,confirmation_only,event_id,ts FROM signal_confirmations ORDER BY id DESC LIMIT ?", (min(limit, 200),)).fetchall()]
+    c.close()
+    return {"events": rows, "confirmations": confs, "confirmation_only": True,
+            "note": "TradingView alerts are supplementary confirmation only — never a prediction input."}
 
 @app.websocket("/ws/prices/{symbol}")
 async def ws_prices(ws: WebSocket, symbol: str):

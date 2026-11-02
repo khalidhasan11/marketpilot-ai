@@ -29,6 +29,31 @@ Base: `/api/v1` · Interactive OpenAPI: `GET /docs` (FastAPI) · Health: `GET /h
 | GET | /api/v1/economic-calendar | – | event TYPES reference (no invented dates) |
 | GET | /api/v1/quotex | – | data-limited explanation |
 | WS | /ws/prices/{symbol} | – | live tick stream (5s cadence) |
+| POST | /api/v1/webhooks/tradingview | Shared secret | TradingView alert receiver — confirmation ONLY (see below) |
+| GET | /api/v1/webhooks/tradingview/events | Bearer | recent webhook events + confirmations |
+
+### TradingView webhook (confirmation only — never a decision input)
+Payload (JSON): `{"secret": "…", "event_id": "optional", "symbol": "BINANCE:BTCUSDT",
+"action": "alert name / action", "price": 65000, "timestamp": 1793642239}` —
+`timestamp` may be epoch seconds, epoch ms, or ISO-8601; the secret may also be sent
+as header `X-Webhook-Secret`. Behaviour:
+- `TRADINGVIEW_WEBHOOK_SECRET` unset on the server → **503** (endpoint refuses all traffic).
+- Wrong secret → **401** (constant-time compare; attempt logged, secret never logged).
+- Timestamp missing/unparseable → **400**; skew > ±5 min → **400**.
+- Same `event_id` (or same symbol+action+timestamp+price hash) twice → **200
+  `{"duplicate": true}`**, processed once.
+- Symbol normalised (`BINANCE:BTCUSDT` / `BTC/USDT` / `BTCUSDT` → `BTCUSDT`);
+  unknown symbol → **422**, logged.
+- Rate limit: 30 requests/min per IP → **429**.
+- Accepted alerts are stored in `tv_webhook_events` + `signal_confirmations`
+  (`source='tradingview_alert', confirmation_only=1`) and as a notification.
+  **They never create, modify, or validate any prediction or trading signal** —
+  decisions are computed solely from Binance data + RSS news.
+- **Setup reality check:** create the alert in TradingView with the webhook URL
+  `https://<your-backend>/api/v1/webhooks/tradingview` and the JSON above as the
+  alert message. TradingView delivers webhooks **only on paid plans (Essential+)
+  with 2FA enabled** — on the free Basic plan the alert will never fire. This is a
+  TradingView limitation, stated openly; the receiver itself is free and tested.
 
 Prediction schema: exactly the spec's structure — asset, market, timeframe, direction
 (BUY/SELL family: BULLISH/BEARISH/NEUTRAL/NO TRADE), probability (score-mapped,

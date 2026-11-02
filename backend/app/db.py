@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS notifications(id INTEGER PRIMARY KEY, user_id INTEGER
 CREATE TABLE IF NOT EXISTS data_provider_status(provider TEXT PRIMARY KEY, status TEXT, payload TEXT, ts INTEGER);
 CREATE TABLE IF NOT EXISTS audit_logs(id INTEGER PRIMARY KEY, user_id INTEGER, action TEXT, detail TEXT, ts INTEGER);
 CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, user_id INTEGER, expires INTEGER);
+CREATE TABLE IF NOT EXISTS tv_webhook_events(id INTEGER PRIMARY KEY, event_key TEXT UNIQUE NOT NULL, symbol_raw TEXT, symbol TEXT, action TEXT, price REAL, status TEXT NOT NULL, payload TEXT, ip TEXT, ts INTEGER);
+CREATE TABLE IF NOT EXISTS signal_confirmations(id INTEGER PRIMARY KEY, source TEXT NOT NULL, symbol TEXT, action TEXT, price REAL, confirmation_only INTEGER NOT NULL DEFAULT 1, event_id INTEGER, ts INTEGER);
 CREATE TABLE IF NOT EXISTS trades(id INTEGER PRIMARY KEY, symbol TEXT, price REAL, qty REAL, ts INTEGER);
 CREATE TABLE IF NOT EXISTS orderbook_snapshots(id INTEGER PRIMARY KEY, symbol TEXT, payload TEXT, ts INTEGER);
 """
