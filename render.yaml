@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: marketpilot-ai-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+    # NOTE: Render free web services spin down after inactivity and have an
+    # ephemeral filesystem (SQLite resets on redeploy). Acceptable for demo;
+    # production needs a managed Postgres. Creating this service requires
+    # Khalid's own Render account action — see DEPLOYMENT.md (BLOCKED step).

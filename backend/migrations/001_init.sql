@@ -1,0 +1,12 @@
+-- MarketPilot AI initial schema (SQLite dialect; Postgres-compatible design:
+-- replace INTEGER PRIMARY KEY with BIGSERIAL, TEXT payloads with JSONB for Postgres/TimescaleDB).
+-- See backend/app/db.py SCHEMA for the authoritative runtime DDL (identical tables).
+-- Tables: users, user_settings, assets, exchanges, market_prices, market_candles,
+-- trades, orderbook_snapshots, technical_indicators, market_regimes, news_articles,
+-- economic_events, news_asset_impacts, prediction_models, model_predictions,
+-- trading_signals, signal_updates, signal_outcomes, backtest_runs, backtest_results,
+-- paper_accounts, paper_orders, paper_positions, watchlists, watchlist_items,
+-- notifications, data_provider_status, audit_logs, sessions.
+-- Retention: candles 90 days hot, then archive; audit_logs 1 year; news 180 days.
+-- Indexes: market_candles(symbol,interval,t) PK; trading_signals(symbol,ts); news dedupe_hash UNIQUE.
+SELECT 1;
